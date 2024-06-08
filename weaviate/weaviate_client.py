@@ -22,11 +22,29 @@ class WeaviateClient:
         endpoint = f"{SCHEMA_ENDPOINT}/{class_name}"
         await self.http_handler.get_json_response("DELETE", endpoint)
 
-    async def create_object(self, data: Dict[str, Any], class_name: str) -> str:
-        payload = {"class": class_name, "properties": data}
-        response = await self.http_handler.get_json_response("POST", OBJECTS_ENDPOINT, payload)
-        return response.get("id")
+### i have refine the create object function to include the vector in the payload while inserting the raw data
 
+    async def create_object(self, data: Dict[str, Any], class_name: str, vector: List[float] = None) -> str:
+        payload = {"class": class_name, "properties": data}
+        if vector is not None:
+            payload["vector"] = vector
+        print(f"Payload to be sent: {payload}")  # Debug: Log the payload being sent
+
+        try:
+            response = await self.http_handler.get_json_response("POST", OBJECTS_ENDPOINT, payload)
+            print(f"Response received: {response}")  # Debug: Log the response received
+            if response and isinstance(response, dict):
+                return response.get("id")
+            else:
+                print(f"Unexpected response format: {response}")
+                return None
+        except Exception as e:
+            print(f"Error creating object: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                response_content = await e.response.text()
+                print(f"Response content: {response_content}")
+            raise e
+        
     async def batch_create_objects(self, objects: List[Dict[str, Any]], class_name: str) -> bool:
         transformed_objects = [{"class": class_name, "properties": obj} for obj in objects]
         batch_data = {"objects": transformed_objects}
@@ -47,5 +65,6 @@ class WeaviateClient:
         await self.http_handler.get_json_response("DELETE", endpoint)
         return True
 
-    async def run_query(self, graphql_query: str) -> Dict[str, Any]:
+#### very useful function for all the qieries for now!
+    async def run_query(self, graphql_query: str) -> Dict[str, Any]: 
         return await self.http_handler.get_json_response("POST", GRAPHQL_ENDPOINT, {"query": graphql_query})

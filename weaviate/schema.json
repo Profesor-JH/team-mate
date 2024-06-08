@@ -113,6 +113,24 @@
         }
       ],
       "vectorizer": "text2vec-openai"
+    },
+    {
+      "class": "Job",
+      "description": "A class to store job postings",
+      "properties": [
+        {"name": "title", "dataType": ["text"], "description": "Job title"},
+        {"name": "company", "dataType": ["text"], "description": "Company name"},
+        {"name": "company_link", "dataType": ["text"], "description": "Company LinkedIn link"},
+        {"name": "place", "dataType": ["text"], "description": "Job location"},
+        {"name": "date", "dataType": ["date"], "description": "Date posted"},
+        {"name": "apply_link", "dataType": ["text"], "description": "Link to apply"},
+        {"name": "post_link", "dataType": ["text"], "description": "Post link"},
+        {"name": "seniority_level", "dataType": ["text"], "description": "Seniority level"},
+        {"name": "employmnet_type", "dataType": ["text"], "description": "Employment type"},
+        {"name": "description", "dataType": ["text"], "description": "Job description"},
+        {"name": "job_title_id", "dataType": ["text"], "description": "Job title ID"},
+        {"name": "job_desc_id", "dataType": ["text"], "description": "Job description ID"}
+      ]
     }
   ]
 }
