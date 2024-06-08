@@ -166,6 +166,3 @@ cython_debug/
 **/migrations/*.py
 docs.MD
 
-###my keys
-key
-key.pub
