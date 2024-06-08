@@ -166,5 +166,6 @@ cython_debug/
 **/migrations/*.py
 docs.MD
 
+## adding my keys here
 key
 key.pub
