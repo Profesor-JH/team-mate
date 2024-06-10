@@ -131,6 +131,48 @@
         {"name": "job_title_id", "dataType": ["text"], "description": "Job title ID"},
         {"name": "job_desc_id", "dataType": ["text"], "description": "Job description ID"}
       ]
+    },
+    {
+      "class": "StockNews",
+      "description": "A class to store stock news headlines and associated metadata",
+      "properties": [
+        {"name": "insertion_date", "dataType": ["date"], "description": "Date when the news was inserted"},
+        {"name": "ticker", "dataType": ["text"], "description": "Stock ticker symbol"},
+        {"name": "news1", "dataType": ["text"], "description": "News headline 1"},
+        {"name": "news2", "dataType": ["text"], "description": "News headline 2"},
+        {"name": "news3", "dataType": ["text"], "description": "News headline 3"},
+        {"name": "news4", "dataType": ["text"], "description": "News headline 4"},
+        {"name": "news5", "dataType": ["text"], "description": "News headline 5"},
+        {"name": "news6", "dataType": ["text"], "description": "News headline 6"},
+        {"name": "news7", "dataType": ["text"], "description": "News headline 7"},
+        {"name": "news8", "dataType": ["text"], "description": "News headline 8"},
+        {"name": "news9", "dataType": ["text"], "description": "News headline 9"},
+        {"name": "news10", "dataType": ["text"], "description": "News headline 10"},
+        {"name": "news11", "dataType": ["text"], "description": "News headline 11"},
+        {"name": "news12", "dataType": ["text"], "description": "News headline 12"},
+        {"name": "news13", "dataType": ["text"], "description": "News headline 13"},
+        {"name": "news14", "dataType": ["text"], "description": "News headline 14"},
+        {"name": "news15", "dataType": ["text"], "description": "News headline 15"},
+        {"name": "news16", "dataType": ["text"], "description": "News headline 16"},
+        {"name": "news17", "dataType": ["text"], "description": "News headline 17"},
+        {"name": "news18", "dataType": ["text"], "description": "News headline 18"},
+        {"name": "news19", "dataType": ["text"], "description": "News headline 19"},
+        {"name": "news20", "dataType": ["text"], "description": "News headline 20"},
+        {"name": "news21", "dataType": ["text"], "description": "News headline 21"},
+        {"name": "news22", "dataType": ["text"], "description": "News headline 22"},
+        {"name": "news23", "dataType": ["text"], "description": "News headline 23"},
+        {"name": "news24", "dataType": ["text"], "description": "News headline 24"},
+        {"name": "news25", "dataType": ["text"], "description": "News headline 25"},
+        {"name": "news26", "dataType": ["text"], "description": "News headline 26"},
+        {"name": "news27", "dataType": ["text"], "description": "News headline 27"},
+        {"name": "news28", "dataType": ["text"], "description": "News headline 28"},
+        {"name": "news29", "dataType": ["text"], "description": "News headline 29"},
+        {"name": "news30", "dataType": ["text"], "description": "News headline 30"},
+        {"name": "company", "dataType": ["text"], "description": "Company name"},
+        {"name": "sector", "dataType": ["text"], "description": "Sector of the company"},
+        {"name": "industry", "dataType": ["text"], "description": "Industry of the company"},
+        {"name": "country", "dataType": ["text"], "description": "Country of the company"}
+      ]
     }
   ]
 }

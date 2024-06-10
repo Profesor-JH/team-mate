@@ -23,3 +23,15 @@ class JobVectorizer:
             job_data.get("employmnet_type", "")
         ])
         return self.embed_text(text)
+    
+    def vectorize_news(self, news_data: Dict[str, str]) -> np.ndarray:
+        # Use the relevant fields for vectorization
+        text = " ".join([
+            news_data.get("ticker", ""), 
+            news_data.get("company", ""), 
+            news_data.get("sector", ""), 
+            news_data.get("industry", ""), 
+            news_data.get("country", ""),
+            " ".join([news_data.get(f"news{i}", "") for i in range(1, 31)])  # Concatenate all news fields
+        ])
+        return self.embed_text(text)

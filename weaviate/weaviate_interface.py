@@ -1,13 +1,15 @@
 import csv
 import pandas as pd
-from datetime import datetime
+import aiomysql
+from datetime import datetime, date,timezone
 from weaviate.schema_manager import SchemaManager
 from weaviate.weaviate_client import WeaviateClient
 from .http_client import HttpClient, HttpHandler
 from weaviate.vectorizer import JobVectorizer
 import os
+import yaml
 from dotenv import load_dotenv
-
+import tqdm
 
 
 class WeaviateInterface:
@@ -131,7 +133,122 @@ class WeaviateInterface:
             return jobs
         except Exception as e:
             print(f"Error searching jobs: {e}")
-            return []
+            return []    
+        
+
+    
+    async def upload_data_from_mysql(self, mysql_config: dict) -> None:
+        def format_date(date_input) -> str:
+            try:
+                if isinstance(date_input, (datetime, date)):
+                    # Convert to RFC3339 format with time and timezone
+                    return datetime.combine(date_input, datetime.min.time()).replace(tzinfo=timezone.utc).isoformat()
+                else:
+                    raise ValueError("Invalid date format or type")
+            except ValueError as e:
+                print(f"Invalid date format: {date_input}, Error: {e}")
+                return None
+            
+        uploaded_news = []
+        connection = None
+
+        try:
+
+            # Connect to MySQL database
+            connection = await aiomysql.connect(
+                host=mysql_config['host'],
+                user=mysql_config['user'],
+                password=mysql_config['password'],
+                db=mysql_config['database']
+            )
+
+            async with connection.cursor() as cursor:
+                await cursor.execute("""
+                    SELECT nh.InsertionDate, nh.Ticker, nh.News1, nh.News2, nh.News3, nh.News4, nh.News5, nh.News6, nh.News7, nh.News8, nh.News9, nh.News10,
+                        nh.News11, nh.News12, nh.News13, nh.News14, nh.News15, nh.News16, nh.News17, nh.News18, nh.News19, nh.News20,
+                        nh.News21, nh.News22, nh.News23, nh.News24, nh.News25, nh.News26, nh.News27, nh.News28, nh.News29, nh.News30,
+                        dc.Company, ds.Sector, di.Industry, dco.Country
+                    FROM Ratios_Tech.Stocks_News_headlines nh
+                    INNER JOIN Dimension_Company dc ON nh.Ticker = dc.Ticker
+                    INNER JOIN Dimension_Sector ds ON nh.Ticker = ds.Ticker
+                    INNER JOIN Dimension_Industry di ON dc.Ticker = di.Ticker
+                    INNER JOIN Dimension_Country dco ON dc.Ticker = dco.Ticker
+                    where nh.InsertionDate = '2024-06-08'
+                """)
+                rows = await cursor.fetchall()
+
+                # Define the required fields for validation
+                required_fields = [
+                    "insertion_date", "ticker", "company", "sector", "industry", "country",
+                    "news1", "news2", "news3", "news4", "news5", "news6", "news7", "news8",
+                    "news9", "news10", "news11", "news12", "news13", "news14", "news15",
+                    "news16", "news17", "news18", "news19", "news20", "news21", "news22",
+                    "news23", "news24", "news25", "news26", "news27", "news28", "news29", "news30"
+                ]
+                news_fields = [f"news{i}" for i in range(1, 31)]  
+
+                for row in tqdm.asyncio.tqdm(rows):
+                    # Print the row to inspect the data
+                    print("Row data:", row)
+
+                    # Ensure insertion_date is formatted correctly
+                    insertion_date = format_date(row[0])
+                    if insertion_date is None:
+                        print("Error: Invalid insertion date")
+                        continue
+
+                    news_data = {
+                        "insertion_date": insertion_date,
+                        "ticker": row[1],
+                        "company": row[32],
+                        "sector": row[33],
+                        "industry": row[34],
+                        "country": row[35]
+                        }
+                    # Add news fields
+                    for i, news_field in enumerate(news_fields, start=2):
+                        news_data[news_field] = str(row[i]) if row[i] is not None else ""
+
+                    # Print news_data to inspect the transformation
+                    print("Transformed news_data:", news_data)
+
+                    # Validate required fields and their types
+                    missing_fields = [field for field in required_fields if news_data.get(field) is None]
+                    if missing_fields:
+                        print(f"Error: Missing fields: {missing_fields}")
+                        continue
+
+                    invalid_type_fields = [field for field in required_fields if not isinstance(news_data.get(field), str)]
+                    if invalid_type_fields:
+                        print(f"Error: Fields with invalid types: {invalid_type_fields}")
+                        continue
+
+
+
+                    # Vectorize news data (you may need to implement vectorize_news method similar to vectorize_job)
+                    news_vector = self.vectorizer.vectorize_news(news_data)
+                    flattened_vector = [item for sublist in news_vector.tolist() for item in sublist]
+
+                    # Remove keys with None values
+                    news_data = {k: v for k, v in news_data.items() if v is not None}
+
+                    try:
+                        response = await self.client.create_object(news_data, "StockNews", flattened_vector)
+                        print(f"Response from Weaviate: {response}")
+                        uploaded_news.append(news_data)
+                    except Exception as e:
+                        print(f"Error uploading news data: {e}")
+
+        except Exception as e:
+            print(f"Error connecting to MySQL database: {e}")
+
+        finally:
+            if connection is not None:
+                await connection.ensure_closed()
+
+        print(f"Uploaded News: {uploaded_news}")
+        return uploaded_news
+
         
 
 def setup_weaviate_interface() -> WeaviateInterface:

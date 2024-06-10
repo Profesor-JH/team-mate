@@ -1,14 +1,18 @@
 import uvicorn
 import socketio
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from typing import Dict, List
-
+from docx import Document
+import fitz  # PyMuPDF
 import asyncio
-import  openai 
+import openai
 import tiktoken
 import os
 from dotenv import load_dotenv
 from weaviate.weaviate_interface import setup_weaviate_interface
+import aiofiles
+import os
+from fastapi.responses import JSONResponse
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,7 +28,6 @@ if api_key is None:
 
 openai.api_key = api_key
 
-
 # Actually i have 4096 tokens available for gpt 3.5 turbo but i want the max to be little bit less than for precaution
 MAX_TOKENS = 3896
 CONTEXT_TOKENS_LIMIT = 2000  # 2000 for the context as we need to add our retrive context from weaviate!
@@ -34,11 +37,11 @@ MODEL_NAME = "gpt-3.5-turbo-0125"
 # Initialize the tokenizer for the specific model
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
-# Here is a function to count tokens so that we know we are still within a given limit
+# Function to count tokens
 def count_tokens(text: str) -> int:
     return len(tokenizer.encode(text))
 
-# Because i have some limit with gpt 3.5 turbo in interm of number of token to use this function will truncate context to fit within token limits
+# Function to truncate context to fit within token limits
 def truncate_context(query: str, context: str) -> str:
     context_tokens = tokenizer.encode(context)
     if len(context_tokens) > CONTEXT_TOKENS_LIMIT:
@@ -59,14 +62,14 @@ def truncate_context(query: str, context: str) -> str:
     """
     return prompt
 
-# This is the main function to generate a response using GPT with streaming and it will be called later once we have the query and the context ready!
+# Main function to generate a response using GPT with streaming
 async def generate_response_with_gpt_stream(query: str, context: str, sid: str) -> str:
     prompt = truncate_context(query, context)
     response_chunks: List[str] = []
 
     print(f"Prompt sent to GPT: {prompt}")  # Debugging print
 
-    # OpenAI's streaming response handling so that we can enable generation capabilities in the rssponses
+    # OpenAI's streaming response handling
     response = openai.ChatCompletion.create(
         model=MODEL_NAME,
         messages=[
@@ -92,7 +95,7 @@ async def generate_response_with_gpt_stream(query: str, context: str, sid: str) 
     print(f"Final response: {final_response}")  # Debugging print
     return final_response
 
-# FastAPI application setting up!
+# FastAPI application
 app = FastAPI()
 # Socket.IO server
 sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode="asgi")
@@ -101,14 +104,16 @@ app.mount("/", socket_app)
 
 # Dictionary to store session data
 sessions: Dict[str, List[Dict[str, str]]] = {}
+# Dictionary to store resumes
+resumes: Dict[str, str] = {}
 
-# Weaviate Interface setting up!
+# Weaviate Interface
 weaviate_interface = setup_weaviate_interface()
 
 # Print {"Hello":"World"} on localhost:7777
 @app.get("/")
-def read_root():
-    return {"Hello": "World"}
+async def read_root():
+    return {"message": "Hello, World!"}
 
 @sio.on("connect")
 async def connect(sid, env):
@@ -131,6 +136,40 @@ async def handle_session_init(sid, data):
     print(f"**** Session {session_id} initialized for {sid} session data: {sessions[session_id]}")
     await sio.emit("sessionInit", {"sessionId": session_id, "chatHistory": sessions[session_id]}, room=sid)
 
+def extract_text_from_docx(docx_file):
+    doc = Document(docx_file)
+    return "\n".join([para.text for para in doc.paragraphs])
+
+def extract_text_from_pdf(pdf_file):
+    pdf_document = fitz.open(stream=pdf_file, filetype="pdf")
+    text = ""
+    for page_num in range(len(pdf_document)):
+        page = pdf_document.load_page(page_num)
+        text += page.get_text()
+    return text
+
+@app.post("/upload_resume")
+async def upload_resume(file: UploadFile = File(...)):
+    file_extension = file.filename.split('.')[-1].lower()
+    
+    async with aiofiles.open(file.filename, 'wb') as out_file:
+        content = await file.read()
+        await out_file.write(content)
+
+    if file_extension == 'docx':
+        resume_text = extract_text_from_docx(file.filename)
+    elif file_extension == 'pdf':
+        resume_text = extract_text_from_pdf(file.filename)
+    else:
+        return JSONResponse(status_code=400, content={"message": "Unsupported file format"})
+
+    # Store the resume text in the resumes dictionary with the session ID as the key
+    session_id = file.filename.split('_')[0]
+    resumes[session_id] = resume_text
+    
+    return {"resume_text": resume_text}
+
+
 # Handle incoming chat messages
 @sio.on("textMessage")
 async def handle_chat_message(sid, data):
@@ -147,12 +186,12 @@ async def handle_chat_message(sid, data):
         }
         sessions[session_id].append(received_message)
 
-        # Now, i able to interact with Weaviate to get a response based on the message
+        # Now, interact with Weaviate to get a response based on the message
         weaviate_query = data.get("message")
         try:
-            # this will ectorize the user query in order to proceed with a semantic search
+            # Vectorize the user query for semantic search
             query_vector = weaviate_interface.vectorizer.embed_text(weaviate_query).tolist()
-            flattened_q_vector = [item for sublist in query_vector for item in sublist] # yeah this is because the former query_vector was in double [] and did not work properly to retrive the infos i want from the base
+            flattened_q_vector = [item for sublist in query_vector for item in sublist]
             query = f"""
             {{
                 Get {{
@@ -168,17 +207,19 @@ async def handle_chat_message(sid, data):
                 }}
             }}
             """
-            # Debug: Print the query just for checking, was getting some errors
-            print(f"GraphQL Query: {query}")
+            print(f"GraphQL Query: {query}")  # Debugging print
 
             response = await weaviate_interface.client.run_query(query)
-            # Debuging: i m printing the raw response - 
-            print(f"GraphQL Response: {response}")
+            print(f"GraphQL Response: {response}")  # Debugging print
             jobs = response.get('data', {}).get('Get', {}).get('Job', [])
             if jobs:
                 context = ""
                 for job in jobs:
                     context += f"Title: {job['title']}\nCompany: {job['company']}\nDescription: {job['description']}\nApply Link: {job['apply_link']}\n\n"
+                
+                # Integrate the resume text into the context
+                resume_text = resumes.get(session_id, "")
+                context += f"\nResume Text:\n{resume_text}\n"
                 
                 response_text = await generate_response_with_gpt_stream(weaviate_query, context, sid)
             else:
@@ -207,5 +248,6 @@ async def main():
     #print("Uploaded Jobs with vectors")
 
 if __name__ == "__main__":
+    os.makedirs("upload_resume", exist_ok=True)
     asyncio.run(main())
-    uvicorn.run("main:app", host="0.0.0.0", port=6789, lifespan="on", reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=6789, lifespan="on", reload=False)
